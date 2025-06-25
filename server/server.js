@@ -4,15 +4,17 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
-import ConnectDb from './config/database.js'
+import approute from './routes/test.js'
+import connectDB from './config/database.js';
 
 dotenv.config();
-ConnectDb();
+connectDB();
 const app = express();
 const server = createServer(app);
 
 app.use(cors());
 app.use(express.json());
+app.use('/api/test',approute)
 
 app.get('/', (req, res) => {
   res.json({  
