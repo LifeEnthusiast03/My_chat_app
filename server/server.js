@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import mongoose from 'mongoose';
 import approute from './routes/test.js'
 import connectDB from './config/database.js';
+import authroute from './routes/auth.js'
 
 dotenv.config();
 connectDB();
@@ -15,6 +16,7 @@ const server = createServer(app);
 app.use(cors());
 app.use(express.json());
 app.use('/api/test',approute)
+app.use('/api/auth',authroute);
 
 app.get('/', (req, res) => {
   res.json({  

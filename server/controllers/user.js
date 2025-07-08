@@ -17,7 +17,7 @@ async function createUser(req,res) {
     catch(error){
         res.status(400).json({
             message:error.message,
-            deatils:errors.errors
+            deatils:error.errors
         });
     }
 }
