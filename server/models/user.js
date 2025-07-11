@@ -34,6 +34,11 @@ const userSchema = new mongoose.Schema({
   lastSeen: {
     type: Date,
     default: Date.now
+  },
+  status: {
+    type: String,
+    enum: ['active', 'inactive', 'banned'],
+    default: 'active'
   }
 }, {
   timestamps: true // Adds createdAt and updatedAt

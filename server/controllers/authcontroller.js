@@ -22,7 +22,7 @@ const registerUser = async(req,res)=>{
         })
         await user.save();
         const token = generateToken({
-            userid: user._id,
+            userId: user._id,
             username: user.username,
             email: user.email
             
