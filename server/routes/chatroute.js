@@ -29,3 +29,5 @@ router.get('/getroomparticipant',getRoomParticipent);
 router.post('/leaveroom',leaveRoom);
 router.delete('/deleteroom',deleteRoom);
 router.post('/userstatus',cheakUserStatus)
+
+export default router;

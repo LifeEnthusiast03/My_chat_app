@@ -90,7 +90,7 @@ const loginUser = async (req,res)=>{
         const token = generateToken({
               userId: user._id,
               username: user.username,
-            email: user.email
+              email: user.email
         });
 
 

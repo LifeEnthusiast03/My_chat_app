@@ -3,6 +3,7 @@ import Message from '../models/message.js'
 import User from '../models/user.js'
 
 const joinRoom = ()=>{}
+const updateroom = ()=>{}
 const sendMessage = async()=>{}
 const editMessage = ()=>{}
 const deleteMessage = ()=>{}
