@@ -1,7 +1,7 @@
 import Room from '../models/rooms.js'
 import Message from '../models/message.js'
 import User from '../models/user.js'
-import message from '../models/message.js'
+
 //create room 
 const createRoom = async(req,res)=>{
     try{
@@ -43,13 +43,14 @@ const createRoom = async(req,res)=>{
         })
     }
     catch(error){
-        console.error(error.errors);
+        console.error('Create room error:', error);
         res.status(500).json({
             success:false,
             message:'Internal server Error'
         })
     }
 }
+
 //update room 
 const updateRoom = async(req,res)=>{
     try{
@@ -83,13 +84,14 @@ const updateRoom = async(req,res)=>{
         })
     }
     catch(error){
-            console.error(error.errors);
+            console.error('Update room error:', error);
             res.status(500).json({
                 success:false,
                 message:'Internal server error'
             })
     }
 }
+
 //join room 
 const joinRoom = async(req,res)=>{
     try{
@@ -98,12 +100,12 @@ const joinRoom = async(req,res)=>{
         if(!roomId){
             return res.status(400).json({
                 success:false,
-                message:'Roomid is required'
+                message:'Room id is required'
             })
         }
         const room = await Room.findById(roomId)
         if(!room){
-            return res.status(400).json({
+            return res.status(404).json({
                 success:false,
                 message:'Room not found'
             })
@@ -120,7 +122,7 @@ const joinRoom = async(req,res)=>{
                 message:'Room is full'
             })
         }
-        if(room.participants.some(p => p._id.toString() === userId)){
+        if(room.participants.some(p => p.toString() === userId)){
              return res.status(400).json({
                 success:false,
                 message:'User Already in the room'
@@ -151,7 +153,7 @@ const joinRoom = async(req,res)=>{
 
     }
     catch(error){
-        console.error(error.errors);
+        console.error('Join room error:', error);
         res.status(500).json({
             success:false,
             message:'Internal Server Error'
@@ -159,11 +161,12 @@ const joinRoom = async(req,res)=>{
         
     }
 }
-//return all the rooms for a user
+
+//return all the rooms for a 
 const getRooms = async (req, res) => {
     try {
         const userId = req.user.userId;
-        const { page = 1, limit = 20, type = 'public' } = req.query;
+        const { page = 1, limit = 20, type } = req.query;
 
         const pageNum = parseInt(page) || 1;
         const limitNum = parseInt(limit) || 20;
@@ -205,10 +208,11 @@ const getRooms = async (req, res) => {
         });
     }
 };
-//get the info of a paricular room like name ,descition,maxmember
+
+//get the info of a particular room like name, description, maxmember
 const getRoomInfo = async(req,res)=>{
     try{
-        const {roomId}=req.body;
+        const {roomId} = req.query; 
         const userId = req.user.userId;
         if(!roomId){
             return res.status(400).json({
@@ -219,15 +223,15 @@ const getRoomInfo = async(req,res)=>{
         const room = await Room.findById(roomId)
             .populate('participants', 'username email avatar isOnline lastSeen')
             .populate('admins', 'username email avatar')
-            .populate('createdBy', 'username email avatar');;
+            .populate('createdBy', 'username email avatar');
         if(!room){
-            return res.status(400).json({
+            return res.status(404).json({
                 success:false,
                 message:'No room found'
             })
         }
         if(!room.participants.some(p=>p._id.toString()===userId)){
-            return res.status(400).json({
+            return res.status(403).json({
                 success:false,
                 message:'Access Denied'
             });
@@ -245,10 +249,11 @@ const getRoomInfo = async(req,res)=>{
         });
     }
 }
-//get the infomation of room memebers
-const getRoomParticipant = async(req,res)=>{
+
+//get the information of room members
+const getRoomParticipants = async(req,res)=>{
     try{
-        const {roomId}=req.body;
+        const {roomId} = req.query; // Changed from req.body to req.query
         const userId = req.user.userId;
         if(!roomId){
             return res.status(400).json({
@@ -256,17 +261,17 @@ const getRoomParticipant = async(req,res)=>{
                 message:'Room Id is required'
             })
         }
-        const room =await Room.findById(roomId)
+        const room = await Room.findById(roomId)
                     .populate('participants', 'username email avatar isOnline lastSeen status')
                     .populate('admins', 'username email avatar');
         if(!room){
-            return res.status(400).json({
+            return res.status(404).json({
                 success:false,
                 message:"No room found"
             })
         }
         if(!room.participants.some(p=>p._id.toString()===userId)){
-            return res.status(400).json({
+            return res.status(403).json({
                 success:false,
                 message:"Access Denied"
             })
@@ -288,11 +293,12 @@ const getRoomParticipant = async(req,res)=>{
         });
     }
 }
+
 //leave the room
 const leaveRoom = async(req,res)=>{
     try{
         const { roomId } = req.body;
-        const userId = req.user.UserId;
+        const userId = req.user.userId; // Fixed: was req.user.UserId
 
         if (!roomId) {
             return res.status(400).json({
@@ -321,8 +327,8 @@ const leaveRoom = async(req,res)=>{
         room.participants = room.participants.filter(p => p.toString() !== userId);
         room.admins = room.admins.filter(a => a.toString() !== userId);
 
-        if(room.createdBy===userId){
-            if(room.admins.length>=0){
+        if(room.createdBy.toString()===userId){ // Fixed: added .toString()
+            if(room.admins.length>0){ // Fixed: changed >= to >
                 room.createdBy=room.admins[0];
             }
             else if (room.participants.length>0){
@@ -357,6 +363,7 @@ const leaveRoom = async(req,res)=>{
         });
     }
 }
+
 //delete the room
 const deleteRoom = async(req,res)=>{
     try{
@@ -380,7 +387,7 @@ const deleteRoom = async(req,res)=>{
         if (room.createdBy.toString() !== userId){
             return res.status(403).json({
                 success:false,
-                message:'Only admins can delete The rooms'
+                message:'Only room creator can delete the room' 
             })
         }
         await Message.deleteMany({room:roomId});
@@ -399,11 +406,12 @@ const deleteRoom = async(req,res)=>{
         });
     }
 }
+
 //add admin
 const addAdmin = async(req,res)=>{
     try{
         const { roomId, userId: targetUserId } = req.body;
-        const userId = req.user.id;
+        const userId = req.user.userId; 
 
         const room = await Room.findById(roomId);
         if (!room) {
@@ -452,7 +460,8 @@ const addAdmin = async(req,res)=>{
         });
     }
 }
-//remove admint
+
+//remove admin
 const removeAdmin = async(req,res)=>{
     try {
         const { roomId, userId: targetUserId } = req.body;
@@ -497,11 +506,12 @@ const removeAdmin = async(req,res)=>{
         });
     }
 }
+
 //kick user
 const removeUser = async(req,res)=>{
     try{
-    const { roomId, userId: targetUserId } = req.body;
-        const userId = req.user.id;
+        const { roomId, userId: targetUserId } = req.body;
+        const userId = req.user.userId; 
 
         const room = await Room.findById(roomId);
         if (!room) {
@@ -555,24 +565,461 @@ const removeUser = async(req,res)=>{
         });
     }
 }
+
+//add user
+const addUser = async(req,res)=>{
+    try{
+        const {roomId,userId:targetUserId}=req.body;
+        const userId=req.user.userId;
+        if(!roomId){
+            return res.status(400).json({
+                success:false,
+                message:'Room id is required'
+            })
+        }
+        const room = await Room.findById(roomId);
+        const targetUser = await User.findById(targetUserId);
+        if(!room){
+            return res.status(404).json({
+                success:false,
+                message:'No room Found'
+            })
+        }
+        if(!targetUser){
+            return res.status(404).json({
+                success:false,
+                message:'User to be added not found'
+            })
+        }
+        if(!room.admins.includes(userId)){
+            return res.status(403).json({
+                success:false,
+                message:'Only Admins Can Add Members'
+            })
+        }
+        if(room.participants.includes(targetUserId)){
+            return res.status(400).json({
+                success:false,
+                message:'User already in the room',
+            })
+        }
+        if(room.participants.length>=room.maxParticipants){
+                return res.status(400).json({
+                    success:false,
+                    message:'Room is Full'
+                })
+        }
+        room.participants.push(targetUserId);
+        await room.save();
+        res.json({
+            success:true,
+            message:'User added to room successfully'
+        })
+
+    }
+    catch(error){
+            console.error('Adding user Error:', error);
+            res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
+//getUserProfileInfo
+const getUserProfileInfo = async(req,res)=>{
+    try{
+        const {userId:targetUserId} = req.query;
+        const userId = req.user.userId;
+        
+        const user = await User.findById(targetUserId||userId).select('-password');
+        if(!user){
+            return res.status(404).json({
+                success:false,
+                message:'User Not found'
+            })
+        }
+        res.status(200).json({
+             success:true,
+             data:user,
+             message:'Fetch data successfully'
+        })
+    }
+    catch(error){
+            console.error('Get user profile error:', error);
+            res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
 //edit message
-const editMessage = async(req,res)=>{}
+const editMessage = async(req,res)=>{
+    try{
+            const {messageId,content}=req.body;
+            const userId = req.user.userId;
+            if(!messageId||!content){
+                return res.status(400).json({
+                    success:false,
+                    message:'Message id and content is required'
+                })
+            }
+            const message = await Message.findById(messageId);
+            if(!message){
+                return res.status(404).json({
+                    success:false,
+                    message:'Message not found'
+                })
+            }
+            if(message.sender.toString()!==userId){
+                return res.status(403).json({
+                    success:false,
+                    message:'Only sender can Edit message'
+                })
+            }
+            if (message.deleted) {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot edit deleted message'
+                });
+            }
+            message.content=content.trim();
+            message.edited=true;
+            message.editedAt=new Date();
+            await message.save();
+            await message.populate('sender', 'username avatar');
+            res.status(200).json({
+                success:true,
+                message:'Message Edited Successfully',
+                data:message
+            })
+    }
+    catch(error){
+            console.error('Edit message error:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Internal server error'
+           });
+    }
+}
+
 //delete message
-const deleteMessage = async(req,res)=>{}
-//markasread
-const markAsRead = async(req,res)=>{}
-//markasdeliverd 
-const markAsDelivered = async (req,res)=>{}
+const deleteMessage = async(req,res)=>{
+    try{
+        const {messageId}=req.body;
+        const userId = req.user.userId;
+        if(!messageId){
+            return res.status(400).json({
+                success:false, 
+                message:'Message id is required'
+            });
+        }
+        const message = await Message.findById(messageId);
+        if(!message){
+                return res.status(404).json({
+                success:false,
+                message:'Message not found'
+            })
+        }
+       
+        const room = await Room.findById(message.room);
+        const canDelete = message.sender.toString() === userId || 
+                         room.admins.includes(userId);
+
+        if (!canDelete) {
+            return res.status(403).json({
+                success: false,
+                message: 'Not authorized to delete this message'
+            });
+        }
+        if(message.deleted){
+            return res.status(409).json({
+                success:false, 
+                message:'Message is Already Deleted'
+            })
+        }
+        message.content='This Message Is Deleted';
+        message.deleted = true;
+        await message.save();
+        res.json({
+            success:true,
+            message:'Message deleted successfully'
+        })
+    }
+    catch(error){
+        console.error('Delete message error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
+//mark as read
+const markAsRead = async(req,res)=>{
+    try{
+        const { messageId } = req.body;
+        const userId = req.user.userId;
+        if(!messageId){
+            return res.status(400).json({
+                success:false,
+                message:'Message id is required'
+            })
+        }
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({
+                success: false,
+                message: 'Message not found'
+            });
+        }
+
+        // Check if already read
+        const alreadyRead = message.readBy.some(r => r.user.toString() === userId);
+        if (!alreadyRead) {
+            message.readBy.push({ user: userId });
+            await message.save();
+        }
+
+        res.json({
+            success: true,
+            message: 'Message marked as read'
+        });
+        
+    }
+    catch(error){
+        console.error('Mark as read error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
+//mark as delivered 
+const markAsDelivered = async (req,res)=>{
+    try {
+        const { messageId } = req.body;
+        const userId = req.user.userId;
+        if(!messageId){
+            return res.status(400).json({
+                success:false,
+                message:'Message id is required'
+            })
+        }
+        const message = await Message.findById(messageId);
+        if (!message) {
+            return res.status(404).json({
+                success: false,
+                message: 'Message not found'
+            });
+        }
+
+        // Check if already delivered
+        const alreadyDelivered = message.deliveredTo.some(d => d.user.toString() === userId);
+        if (!alreadyDelivered) {
+            message.deliveredTo.push({ user: userId });
+            await message.save();
+        }
+
+        res.json({
+            success: true,
+            message: 'Message marked as delivered'
+        });
+    } catch (error) {
+        console.error('Mark as delivered error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
 //unread message count 
-const unreadMessageCount = async(req,res)=>{}
-//return all the message for a particular room
-const getRoomMessage = async(req,res)=>{}
-//return the last message of the room
-const getRoomLastMessage = async(req,res)=>{}
-//getUserProileInfo
-const getUserProileInfo= async(req,res)=>{}
+const unreadMessageCount = async(req,res)=>{
+    try {
+        const { roomId } = req.query;
+        const userId = req.user.userId;
 
-//cheak if the user is online of offline
-const cheakUserStatus = async(req,res)=>{}
+        const query = {
+            room: roomId,
+            sender: { $ne: userId },
+            deleted: false,
+            'readBy.user': { $ne: userId }
+        };
 
-export{createRoom,updateRoom,joinRoom,addAdmin,removeAdmin,removeUser,editMessage,deleteMessage,getRooms,getRoomInfo,getRoomMessage,getRoomLastMessage,getRoomParticipant,leaveRoom,deleteRoom,cheakUserStatus}
+        const count = await Message.countDocuments(query);
+
+        res.json({
+            success: true,
+            data: { unreadCount: count }
+        });
+    } catch (error) {
+        console.error('Unread message count error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
+//return all the messages for a particular room
+const getRoomMessages = async(req,res)=>{
+    try {
+        const { roomId, page = 1, limit = 50 } = req.query;
+        const userId = req.user.userId;
+
+        if (!roomId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Room ID is required'
+            });
+        }
+
+        // Check if user is in room
+        const room = await Room.findById(roomId);
+        if (!room || !room.participants.includes(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        const messages = await Message.find({
+            room: roomId,
+            deleted: false
+        })
+            .populate('sender', 'username avatar')
+            .populate('replyTo', 'content sender')
+            .sort({ createdAt: -1 })
+            .limit(limit * 1)
+            .skip((page - 1) * limit);
+
+        const totalMessages = await Message.countDocuments({
+            room: roomId,
+            deleted: false
+        });
+
+        res.json({
+            success: true,
+            data: messages.reverse(),
+            pagination: {
+                currentPage: page,
+                totalPages: Math.ceil(totalMessages / limit),
+                totalMessages
+            }
+        });
+    } catch (error) {
+        console.error('Get room messages error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
+//get last message for a room
+const getRoomLastMessage = async(req,res)=>{
+    try {
+        const { roomId } = req.query;
+        const userId = req.user.userId;
+
+        if (!roomId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Room ID is required'
+            });
+        }
+
+        // Check if user is in room
+        const room = await Room.findById(roomId);
+        if (!room || !room.participants.includes(userId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Access denied'
+            });
+        }
+
+        const lastMessage = await Message.findOne({
+            room: roomId,
+            deleted: false
+        })
+            .populate('sender', 'username avatar')
+            .sort({ createdAt: -1 });
+
+        res.json({
+            success: true,
+            data: lastMessage
+        });
+    } catch (error) {
+        console.error('Get room last message error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
+//check if the user is online or offline
+const checkUserStatus = async(req,res)=>{
+    try {
+        const { userId: targetUserId } = req.query; 
+
+        if (!targetUserId) {
+            return res.status(400).json({
+                success: false,
+                message: 'User ID is required'
+            });
+        }
+
+        const user = await User.findById(targetUserId)
+            .select('isOnline lastSeen status');
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                isOnline: user.isOnline,
+                lastSeen: user.lastSeen,
+                status: user.status
+            }
+        });
+    } catch (error) {
+        console.error('Check user status error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+}
+
+export {
+    createRoom,
+    updateRoom,
+    joinRoom,
+    getRooms,
+    getRoomInfo,
+    getRoomParticipants,
+    leaveRoom,
+    deleteRoom,
+    addAdmin,
+    removeAdmin,
+    removeUser,
+    addUser,
+    getUserProfileInfo,
+    editMessage,
+    deleteMessage,
+    markAsRead,
+    markAsDelivered,
+    unreadMessageCount,
+    getRoomMessages,
+    getRoomLastMessage,
+    checkUserStatus
+}
