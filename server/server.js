@@ -1,6 +1,5 @@
 import express from 'express';
 import { createServer } from 'http';
-import { Server } from 'socket.io';
 import cors from 'cors'
 import dotenv from 'dotenv'
 import mongoose from 'mongoose'
@@ -24,8 +23,6 @@ app.use('/api/chat',chatroute);
 
 
 const io = configureSocket(server);
-
-
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.user.username}`);
   
