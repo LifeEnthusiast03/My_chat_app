@@ -9,6 +9,7 @@ import authroute from './routes/auth.js'
 import chatroute from './routes/chatroute.js'
 import configureSocket from './config/socketconfig.js';
 import chathandlers from './socket/socketchat.js';
+import {authenticateToken} from './middleware/auth.js'
 
 dotenv.config();
 connectDB();
@@ -16,15 +17,18 @@ const app = express();
 const server = createServer(app);
 
 app.use(cors());
+
 app.use(express.json());
-app.use('/api/test',approute);
+
 app.use('/api/auth',authroute);
+app.use('/api/test',approute);
 app.use('/api/chat',chatroute);
 
 
 const io = configureSocket(server);
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.user.username}`);
+  
   
   // Set user as online
   socket.user.isOnline = true;

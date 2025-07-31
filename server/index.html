@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.IO Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket.IO Test Client</h1>
+    <button onclick="sendWelcome()">Send Welcome</button>
+    <button onclick="sendGoodBye()">Send GoodBye</button>
+
+    <div id="messages"></div>
+
+    <script>
+        const socket = io('http://localhost:5000');
+        
+        socket.on('connect', () => {
+            console.log('Connected:', socket.id);
+            document.getElementById('messages').innerHTML += `<p>Connected: ${socket.id}</p>`;
+        });
+        
+        socket.on('welcomeing you', (data) => {
+            console.log('Welcome message:', data);
+            document.getElementById('messages').innerHTML += `<p>Welcome: ${data.message}</p>`;
+        });
+        
+        socket.on('byebye', (data) => {
+            console.log('good bye message', data);
+            document.getElementById('messages').innerHTML += `<p>Good bye: ${data.message}</p>`;
+        });
+        
+        function sendWelcome() {
+            socket.emit('welcome');
+        }
+        
+        function sendGoodBye(){
+            socket.emit('bye');
+        }
+        
+        socket.on('disconnect', () => {
+            console.log('Disconnected');
+        });
+    </script>
+</body>
+</html>

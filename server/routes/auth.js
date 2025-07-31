@@ -1,5 +1,5 @@
 import express from 'express'
-import { registerUser,loginUser,logoutUser } from '../controllers/authcontroller.js'
+import { registerUser,loginUser,logoutUser,verifyToken } from '../controllers/authcontroller.js'
 import { authenticateToken,validate } from '../middleware/auth.js';
 import { registerSchema, loginSchema, } from '../validators/authvalidators.js';
 const router = express.Router();
@@ -12,5 +12,5 @@ router.get('/health',async(req,res)=>{
             message:"authroute is woring"
         })
 })
-
+router.get('/verify',authenticateToken,verifyToken)
 export default router;

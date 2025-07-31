@@ -4,8 +4,8 @@ import socketAuthentication from '../middleware/socketmiddleware.js'
 const configureSocket = (server)=>{
         const io = new Server(server,{
              cors: {
-             origin: process.env.CLIENT_URL || "http://localhost:3000",
-             methods: ["GET", "POST"],
+             origin: ['http://localhost:3000', 'http://127.0.0.1:5501', 'http://localhost:5501'],
+             methods: ['GET', 'POST'],
              credentials: true
             }
         })

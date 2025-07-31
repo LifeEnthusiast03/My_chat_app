@@ -16,6 +16,7 @@ import {
 
 const chathandlers = (io, socket) => {
     // Room management
+    
     socket.on('join-room', (data) => joinRoom(socket, data));
     socket.on('update-room', (data) => updateroom(socket, data));
     socket.on('leave-room', (data) => leaveRoom(socket, data));
