@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import socketService from '../services/socketService';
 import { useAuth } from './AuthContext';
 
 const SocketContext = createContext();
@@ -13,148 +13,243 @@ export const useSocket = () => {
 };
 
 export const SocketProvider = ({ children }) => {
-  const { token, user, isAuthenticated } = useAuth();
+  const { user, token, logout } = useAuth();
   const [socket, setSocket] = useState(null);
-  const [connected, setConnected] = useState(false);
-  const [onlineUsers, setOnlineUsers] = useState([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState(new Set());
+  const [typingUsers, setTypingUsers] = useState(new Map());
 
+  // Connect socket when user is authenticated
   useEffect(() => {
-    if (isAuthenticated && token) {
-      const newSocket = io('http://localhost:5000', {
-        auth: {
-          token: token
+    if (user && token) {
+      const socketInstance = socketService.connect(token);
+      setSocket(socketInstance);
+
+      // Setup connection event listeners
+      socketInstance.on('connect', () => {
+        console.log('Connected to server');
+        setIsConnected(true);
+      });
+
+      socketInstance.on('disconnect', (reason) => {
+        console.log('Disconnected from server:', reason);
+        setIsConnected(false);
+      });
+
+      socketInstance.on('connect_error', (error) => {
+        console.error('Connection error:', error);
+        setIsConnected(false);
+        
+        // If authentication fails, logout user
+        if (error.message === 'Authentication error') {
+          logout();
         }
       });
 
-      newSocket.on('connect', () => {
-        console.log('Connected to server');
-        setConnected(true);
-      });
-
-      newSocket.on('disconnect', () => {
-        console.log('Disconnected from server');
-        setConnected(false);
-      });
-
-      newSocket.on('user-online', (userData) => {
-        setOnlineUsers(prev => {
-          if (!prev.find(u => u._id === userData._id)) {
-            return [...prev, userData];
-          }
-          return prev;
-        });
-      });
-
-      newSocket.on('user-offline', (userData) => {
-        setOnlineUsers(prev => prev.filter(u => u._id !== userData._id));
-      });
-
-      setSocket(newSocket);
+      // Setup user presence listeners
+      setupPresenceListeners(socketInstance);
+      
+      // Setup typing listeners
+      setupTypingListeners(socketInstance);
 
       return () => {
-        newSocket.close();
+        socketService.disconnect();
         setSocket(null);
-        setConnected(false);
+        setIsConnected(false);
+        setOnlineUsers(new Set());
+        setTypingUsers(new Map());
       };
     }
-  }, [isAuthenticated, token]);
+  }, [user, token, logout]);
 
-  // Socket event handlers
-  const joinRoom = (roomId, userData) => {
-    if (socket) {
-      socket.emit('join-room', { roomId, userData });
-    }
-  };
+  // Setup presence event listeners
+  const setupPresenceListeners = useCallback((socketInstance) => {
+    socketInstance.on('user-online', (data) => {
+      setOnlineUsers(prev => new Set([...prev, data.userId]));
+    });
 
-  const leaveRoom = (roomId) => {
-    if (socket) {
-      socket.emit('leave-room', { roomId });
-    }
-  };
+    socketInstance.on('user-offline', (data) => {
+      setOnlineUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(data.userId);
+        return newSet;
+      });
+    });
 
-  const sendMessage = (messageData) => {
-    if (socket) {
-      socket.emit('send-message', messageData);
-    }
-  };
+    socketInstance.on('users-list', (data) => {
+      setOnlineUsers(new Set(data.users));
+    });
+  }, []);
 
-  const editMessage = (messageData) => {
-    if (socket) {
-      socket.emit('edit-message', messageData);
-    }
-  };
+  // Setup typing event listeners
+  const setupTypingListeners = useCallback((socketInstance) => {
+    socketInstance.on('user-typing', (data) => {
+      setTypingUsers(prev => {
+        const newMap = new Map(prev);
+        const roomTyping = newMap.get(data.roomId) || new Set();
+        roomTyping.add(data.userId);
+        newMap.set(data.roomId, roomTyping);
+        return newMap;
+      });
+    });
 
-  const deleteMessage = (messageData) => {
-    if (socket) {
-      socket.emit('delete-message', messageData);
-    }
-  };
+    socketInstance.on('user-stopped-typing', (data) => {
+      setTypingUsers(prev => {
+        const newMap = new Map(prev);
+        const roomTyping = newMap.get(data.roomId);
+        if (roomTyping) {
+          roomTyping.delete(data.userId);
+          if (roomTyping.size === 0) {
+            newMap.delete(data.roomId);
+          } else {
+            newMap.set(data.roomId, roomTyping);
+          }
+        }
+        return newMap;
+      });
+    });
+  }, []);
 
-  const startTyping = (roomId) => {
+  // Socket event methods
+  const joinRoom = useCallback((roomId, userData) => {
     if (socket) {
-      socket.emit('start-typing', { roomId, user });
+      socketService.joinRoom(roomId, userData);
     }
-  };
+  }, [socket]);
 
-  const stopTyping = (roomId) => {
+  const leaveRoom = useCallback((roomId) => {
     if (socket) {
-      socket.emit('stop-typing', { roomId, user });
+      socketService.leaveRoom(roomId);
     }
-  };
+  }, [socket]);
 
-  const updateRoom = (roomId, updatedRoom) => {
+  const sendMessage = useCallback((roomId, content, messageType = 'text', replyTo = null) => {
     if (socket) {
-      socket.emit('update-room', { roomId, updatedRoom });
+      socketService.sendMessage(roomId, content, messageType, replyTo);
     }
-  };
+  }, [socket]);
 
-  const deleteRoom = (roomId) => {
+  const editMessage = useCallback((messageId, editMessage) => {
     if (socket) {
-      socket.emit('delete-room', { roomId });
+      socketService.editMessage(messageId, editMessage);
     }
-  };
+  }, [socket]);
 
-  const addAdmin = (roomId, userId) => {
+  const deleteMessage = useCallback((messageId, roomId) => {
     if (socket) {
-      socket.emit('add-admin', { roomId, userId });
+      socketService.deleteMessage(messageId, roomId);
     }
-  };
+  }, [socket]);
 
-  const removeAdmin = (roomId, userId) => {
+  const startTyping = useCallback((roomId) => {
     if (socket) {
-      socket.emit('remove-admin', { roomId, userId });
+      socketService.startTyping(roomId);
     }
-  };
+  }, [socket]);
 
-  const addUser = (roomId, userId) => {
+  const stopTyping = useCallback((roomId) => {
     if (socket) {
-      socket.emit('add-user', { roomId, userId });
+      socketService.stopTyping(roomId);
     }
-  };
+  }, [socket]);
 
-  const removeUser = (roomId, userId) => {
+  const updateRoom = useCallback((roomId, updatedRoom) => {
     if (socket) {
-      socket.emit('user-removed', { roomId, userId });
+      socketService.updateRoom(roomId, updatedRoom);
     }
-  };
+  }, [socket]);
+
+  const deleteRoom = useCallback((roomId) => {
+    if (socket) {
+      socketService.deleteRoom(roomId);
+    }
+  }, [socket]);
+
+  const addUser = useCallback((roomId, newUserId, newUsername) => {
+    if (socket) {
+      socketService.addUser(roomId, newUserId, newUsername);
+    }
+  }, [socket]);
+
+  const removeUser = useCallback((roomId, removedUserId, removedUsername) => {
+    if (socket) {
+      socketService.removeUser(roomId, removedUserId, removedUsername);
+    }
+  }, [socket]);
+
+  const addAdmin = useCallback((roomId, newAdminId, newAdminUsername) => {
+    if (socket) {
+      socketService.addAdmin(roomId, newAdminId, newAdminUsername);
+    }
+  }, [socket]);
+
+  const removeAdmin = useCallback((roomId, removedAdminId, removedAdminUsername) => {
+    if (socket) {
+      socketService.removeAdmin(roomId, removedAdminId, removedAdminUsername);
+    }
+  }, [socket]);
+
+  // Utility methods
+  const addEventListener = useCallback((event, callback) => {
+    if (socket) {
+      socket.on(event, callback);
+    }
+  }, [socket]);
+
+  const removeEventListener = useCallback((event, callback) => {
+    if (socket) {
+      socket.off(event, callback);
+    }
+  }, [socket]);
+
+  const isUserOnline = useCallback((userId) => {
+    return onlineUsers.has(userId);
+  }, [onlineUsers]);
+
+  const getTypingUsers = useCallback((roomId) => {
+    return Array.from(typingUsers.get(roomId) || []);
+  }, [typingUsers]);
+
+  const isUserTyping = useCallback((roomId, userId) => {
+    const roomTyping = typingUsers.get(roomId);
+    return roomTyping ? roomTyping.has(userId) : false;
+  }, [typingUsers]);
 
   const value = {
     socket,
-    connected,
-    onlineUsers,
+    isConnected,
+    onlineUsers: Array.from(onlineUsers),
+    typingUsers,
+    
+    // Room methods
     joinRoom,
     leaveRoom,
+    updateRoom,
+    deleteRoom,
+    
+    // Message methods
     sendMessage,
     editMessage,
     deleteMessage,
+    
+    // Typing methods
     startTyping,
     stopTyping,
-    updateRoom,
-    deleteRoom,
+    
+    // User management methods
+    addUser,
+    removeUser,
     addAdmin,
     removeAdmin,
-    addUser,
-    removeUser
+    
+    // Event methods
+    addEventListener,
+    removeEventListener,
+    
+    // Utility methods
+    isUserOnline,
+    getTypingUsers,
+    isUserTyping
   };
 
   return (

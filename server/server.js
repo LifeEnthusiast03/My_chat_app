@@ -9,7 +9,7 @@ import authroute from './routes/auth.js'
 import chatroute from './routes/chatroute.js'
 import configureSocket from './config/socketconfig.js';
 import chathandlers from './socket/socketchat.js';
-import {authenticateToken} from './middleware/auth.js'
+
 
 dotenv.config();
 connectDB();
@@ -48,6 +48,7 @@ io.on('connection', (socket) => {
 
 
 app.get('/', (req, res) => {
+  
   res.json({  
     message: 'Chat App Server Running!',
     database: 'MongoDB Atlas Connected',
