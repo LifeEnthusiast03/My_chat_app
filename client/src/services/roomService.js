@@ -1,49 +1,80 @@
-import axios from 'axios';
-
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
-// Create axios instance with default config
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
+// Utility function to create fetch requests with default configuration
+const createFetchRequest = async (endpoint, options = {}) => {
+  const url = `${API_BASE_URL}${endpoint}`;
+  
+  // Get token from localStorage
+  const token = localStorage.getItem('token');
+  
+  // Default headers
+  const defaultHeaders = {
     'Content-Type': 'application/json',
-  },
-});
-
-// Add token to requests automatically
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+  };
+  
+  // Add authorization header if token exists
+  if (token) {
+    defaultHeaders.Authorization = `Bearer ${token}`;
   }
-);
-
-// Handle response errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  
+  // Merge headers
+  const headers = {
+    ...defaultHeaders,
+    ...options.headers,
+  };
+  
+  // Create fetch options
+  const fetchOptions = {
+    timeout: 10000,
+    ...options,
+    headers,
+  };
+  
+  try {
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), fetchOptions.timeout);
+    
+    const response = await fetch(url, {
+      ...fetchOptions,
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    // Handle 401 unauthorized
+    if (response.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       window.location.href = '/auth';
+      throw new Error('Unauthorized');
     }
-    return Promise.reject(error);
+    
+    // Parse response
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || `HTTP error! status: ${response.status}`);
+    }
+    
+    return data;
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Request timeout');
+    }
+    throw error;
   }
-);
+};
 
 class RoomService {
   // Room CRUD Operations
   async createRoom(roomData) {
     try {
-      const response = await api.post('/chat/rooms', roomData);
-      return response.data;
+      const response = await createFetchRequest('/chat/rooms', {
+        method: 'POST',
+        body: JSON.stringify(roomData),
+      });
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -51,11 +82,11 @@ class RoomService {
 
   async getRooms(page = 1, limit = 20, type = null) {
     try {
-      const params = { page, limit };
-      if (type) params.type = type;
+      const params = new URLSearchParams({ page, limit });
+      if (type) params.append('type', type);
       
-      const response = await api.get('/chat/rooms', { params });
-      return response.data;
+      const response = await createFetchRequest(`/chat/rooms?${params}`);
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -63,10 +94,9 @@ class RoomService {
 
   async getRoomInfo(roomId) {
     try {
-      const response = await api.get('/chat/rooms/info', {
-        params: { roomId }
-      });
-      return response.data;
+      const params = new URLSearchParams({ roomId });
+      const response = await createFetchRequest(`/chat/rooms/info?${params}`);
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -74,8 +104,11 @@ class RoomService {
 
   async updateRoom(roomId, updateData) {
     try {
-      const response = await api.put(`/chat/rooms/${roomId}`, updateData);
-      return response.data;
+      const response = await createFetchRequest(`/chat/rooms/${roomId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData),
+      });
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -83,10 +116,11 @@ class RoomService {
 
   async deleteRoom(roomId) {
     try {
-      const response = await api.delete('/chat/rooms', {
-        data: { roomId }
+      const response = await createFetchRequest('/chat/rooms', {
+        method: 'DELETE',
+        body: JSON.stringify({ roomId }),
       });
-      return response.data;
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -95,8 +129,11 @@ class RoomService {
   // Room Participation
   async joinRoom(roomId) {
     try {
-      const response = await api.post('/chat/rooms/join', { roomId });
-      return response.data;
+      const response = await createFetchRequest('/chat/rooms/join', {
+        method: 'POST',
+        body: JSON.stringify({ roomId }),
+      });
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -104,8 +141,11 @@ class RoomService {
 
   async leaveRoom(roomId) {
     try {
-      const response = await api.post('/chat/rooms/leave', { roomId });
-      return response.data;
+      const response = await createFetchRequest('/chat/rooms/leave', {
+        method: 'POST',
+        body: JSON.stringify({ roomId }),
+      });
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -114,10 +154,9 @@ class RoomService {
   // Participant Management
   async getRoomParticipants(roomId) {
     try {
-      const response = await api.get('/chat/rooms/participants', {
-        params: { roomId }
-      });
-      return response.data;
+      const params = new URLSearchParams({ roomId });
+      const response = await createFetchRequest(`/chat/rooms/participants?${params}`);
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -125,11 +164,11 @@ class RoomService {
 
   async addUser(roomId, userId) {
     try {
-      const response = await api.post('/chat/rooms/users', {
-        roomId,
-        userId
+      const response = await createFetchRequest('/chat/rooms/users', {
+        method: 'POST',
+        body: JSON.stringify({ roomId, userId }),
       });
-      return response.data;
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -137,10 +176,11 @@ class RoomService {
 
   async removeUser(roomId, userId) {
     try {
-      const response = await api.delete('/chat/rooms/users', {
-        data: { roomId, userId }
+      const response = await createFetchRequest('/chat/rooms/users', {
+        method: 'DELETE',
+        body: JSON.stringify({ roomId, userId }),
       });
-      return response.data;
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -149,11 +189,11 @@ class RoomService {
   // Admin Management
   async addAdmin(roomId, userId) {
     try {
-      const response = await api.post('/chat/rooms/admins', {
-        roomId,
-        userId
+      const response = await createFetchRequest('/chat/rooms/admins', {
+        method: 'POST',
+        body: JSON.stringify({ roomId, userId }),
       });
-      return response.data;
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -161,10 +201,11 @@ class RoomService {
 
   async removeAdmin(roomId, userId) {
     try {
-      const response = await api.delete('/chat/rooms/admins', {
-        data: { roomId, userId }
+      const response = await createFetchRequest('/chat/rooms/admins', {
+        method: 'DELETE',
+        body: JSON.stringify({ roomId, userId }),
       });
-      return response.data;
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -173,11 +214,11 @@ class RoomService {
   // Room Search and Filter
   async searchRooms(query, type = null, page = 1, limit = 20) {
     try {
-      const params = { query, page, limit };
-      if (type) params.type = type;
+      const params = new URLSearchParams({ query, page, limit });
+      if (type) params.append('type', type);
       
-      const response = await api.get('/chat/rooms/search', { params });
-      return response.data;
+      const response = await createFetchRequest(`/chat/rooms/search?${params}`);
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -185,10 +226,9 @@ class RoomService {
 
   async getPublicRooms(page = 1, limit = 20) {
     try {
-      const response = await api.get('/chat/rooms/public', {
-        params: { page, limit }
-      });
-      return response.data;
+      const params = new URLSearchParams({ page, limit });
+      const response = await createFetchRequest(`/chat/rooms/public?${params}`);
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -197,8 +237,8 @@ class RoomService {
   // Room Statistics
   async getRoomStats(roomId) {
     try {
-      const response = await api.get(`/chat/rooms/${roomId}/stats`);
-      return response.data;
+      const response = await createFetchRequest(`/chat/rooms/${roomId}/stats`);
+      return response;
     } catch (error) {
       throw this.handleError(error);
     }
@@ -206,16 +246,22 @@ class RoomService {
 
   // Utility Methods
   handleError(error) {
-    if (error.response) {
+    if (error.message.includes('timeout')) {
       return {
-        message: error.response.data.message || 'An error occurred',
-        status: error.response.status,
-        data: error.response.data
+        message: 'Request timeout - please try again',
+        status: 408
       };
-    } else if (error.request) {
+    } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
       return {
         message: 'Network error - please check your connection',
         status: 0
+      };
+    } else if (error.message.includes('HTTP error')) {
+      const statusMatch = error.message.match(/status: (\d+)/);
+      const status = statusMatch ? parseInt(statusMatch[1]) : 500;
+      return {
+        message: error.message,
+        status
       };
     } else {
       return {

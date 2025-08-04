@@ -13,7 +13,7 @@ class SocketService {
       return this.socket;
     }
 
-    const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
+    const serverUrl = 'http://localhost:5000';
     
     this.socket = io(serverUrl, {
       auth: {
